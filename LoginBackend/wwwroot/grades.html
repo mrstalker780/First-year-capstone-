@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Student Grade Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 850px; margin: 40px auto; padding: 0 20px; }
+    h1 { text-align: center; margin-bottom: 24px; }
+
+    .topbar { display:flex; justify-content:flex-end; margin-bottom:10px; }
+    .topbar span { margin-right:12px; color:#6b7280; font-size:0.9rem; align-self:center; }
+    .btn-logout { padding:7px 16px; background:#6b7280; color:white; border:none; border-radius:4px; cursor:pointer; }
+    .btn-logout:hover { background:#4b5563; }
+
+    .form-area { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px; }
+    input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 160px; }
+    input:focus { outline: none; border-color: #2563eb; }
+
+    button { padding: 8px 18px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: center; }
+    th { background: #f3f4f6; font-weight: 600; }
+    tr:hover { background: #f9fafb; }
+
+    .pass { color: #16a34a; font-weight: bold; }
+    .fail { color: #dc2626; font-weight: bold; }
+
+    .btn-del { background: #ef4444; padding: 5px 12px; font-size: 0.85rem; }
+    .btn-del:hover { background: #dc2626; }
+
+    .status { text-align: center; color: #6b7280; margin: 10px 0; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <span id="welcome-msg"></span>
+  <button class="btn-logout" onclick="location.href='/logout'">Logout</button>
+</div>
+
+<h1>📋 Student Grade Calculator</h1>
+
+<div class="form-area">
+  <input id="name"        placeholder="Student Name"/>
+  <input id="oral"        type="number" placeholder="Oral (30%)"        min="0" max="100"/>
+  <input id="exam"        type="number" placeholder="Exam (50%)"        min="0" max="100"/>
+  <input id="performance" type="number" placeholder="Performance (20%)" min="0" max="100"/>
+  <button onclick="add()">Add Student</button>
+</div>
+
+<p class="status" id="status">Loading...</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Name</th>
+      <th>Oral</th>
+      <th>Exam</th>
+      <th>Performance</th>
+      <th>Final Grade</th>
+      <th>Remarks</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script>
+  const API = "/api/students";
+
+  async function load() {
+    try {
+      const res = await fetch(API);
+      if (res.status === 401) { location.href = '/'; return; }
+      const data = await res.json();
+      render(data);
+    } catch {
+      document.getElementById('status').textContent = '⚠️ Cannot connect to backend.';
+    }
+  }
+
+  async function add() {
+    const name        = document.getElementById('name').value.trim();
+    const oral        = +document.getElementById('oral').value;
+    const exam        = +document.getElementById('exam').value;
+    const performance = +document.getElementById('performance').value;
+
+    if (!name) return alert('Please enter a student name.');
+    if ([oral, exam, performance].some(v => isNaN(v) || v < 0 || v > 100))
+      return alert('Scores must be numbers between 0 and 100.');
+
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, oral, exam, performance })
+    });
+
+    if (res.status === 401) { location.href = '/'; return; }
+
+    ['name', 'oral', 'exam', 'performance'].forEach(id =>
+      document.getElementById(id).value = '');
+
+    load();
+  }
+
+  async function remove(id) {
+    if (!confirm('Delete this student?')) return;
+    await fetch(`${API}/${id}`, { method: 'DELETE' });
+    load();
+  }
+
+  function render(students) {
+    const tbody  = document.getElementById('tbody');
+    const status = document.getElementById('status');
+
+    if (students.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8">No students yet. Add one above.</td></tr>';
+      status.textContent = '0 students';
+      return;
+    }
+
+    status.textContent = `${students.length} student(s) total`;
+    tbody.innerHTML = students.map((s, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${s.name}</td>
+        <td>${s.oral}</td>
+        <td>${s.exam}</td>
+        <td>${s.performance}</td>
+        <td><strong>${s.finalGrade}</strong></td>
+        <td class="${s.remarks === 'Passed' ? 'pass' : 'fail'}">${s.remarks}</td>
+        <td><button class="btn-del" onclick="remove(${s.id})">Delete</button></td>
+      </tr>
+    `).join('');
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+  load();
+</script>
+
+</body>
+</html>
